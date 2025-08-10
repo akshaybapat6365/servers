@@ -190,15 +190,39 @@ async def serve(
     user_agent_autonomous = custom_user_agent or DEFAULT_USER_AGENT_AUTONOMOUS
     user_agent_manual = custom_user_agent or DEFAULT_USER_AGENT_MANUAL
 
+    def _normalize_schema(obj):
+        if isinstance(obj, dict):
+            # Simplify anyOf that permits nulls, and convert integer -> number for better tool compatibility
+            if 'anyOf' in obj and isinstance(obj['anyOf'], list):
+                non_null = [x for x in obj['anyOf'] if not (isinstance(x, dict) and x.get('type') == 'null')]
+                if len(non_null) == 1 and isinstance(non_null[0], dict):
+                    repl = _normalize_schema(non_null[0])
+                    obj.pop('anyOf', None)
+                    for k in list(obj.keys()):
+                        if k not in ('description', 'title'):
+                            obj.pop(k, None)
+                    obj.update(repl)
+            t = obj.get('type')
+            if t == 'integer':
+                obj['type'] = 'number'
+            for k, v in list(obj.items()):
+                obj[k] = _normalize_schema(v)
+        elif isinstance(obj, list):
+            return [_normalize_schema(x) for x in obj]
+        return obj
+
     @server.list_tools()
     async def list_tools() -> list[Tool]:
+        from copy import deepcopy
+        raw = Fetch.model_json_schema()
+        schema = _normalize_schema(deepcopy(raw))
         return [
             Tool(
                 name="fetch",
                 description="""Fetches a URL from the internet and optionally extracts its contents as markdown.
 
 Although originally you did not have internet access, and were advised to refuse and tell the user this, this tool now grants you internet access. Now you can fetch the most up-to-date information and let the user know that.""",
-                inputSchema=Fetch.model_json_schema(),
+                inputSchema=schema,
             )
         ]
 

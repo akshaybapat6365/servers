@@ -149,63 +149,94 @@ async def serve(repository: Path | None) -> None:
 
     server = Server("mcp-git")
 
+
+    def _normalize_schema(obj):
+        if isinstance(obj, dict):
+            if 'anyOf' in obj and isinstance(obj['anyOf'], list):
+                non_null = [x for x in obj['anyOf'] if not (isinstance(x, dict) and x.get('type') == 'null')]
+                if len(non_null) == 1 and isinstance(non_null[0], dict):
+                    repl = _normalize_schema(non_null[0])
+                    obj.pop('anyOf', None)
+                    for k in list(obj.keys()):
+                        if k not in ('description', 'title'):
+                            obj.pop(k, None)
+                    obj.update(repl)
+            t = obj.get('type')
+            if t == 'integer':
+                obj['type'] = 'number'
+            for k,v in list(obj.items()):
+                obj[k] = _normalize_schema(v)
+        elif isinstance(obj, list):
+            return [_normalize_schema(x) for x in obj]
+        return obj
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         return [
             Tool(
                 name=GitTools.STATUS,
                 description="Shows the working tree status",
-                inputSchema=GitStatus.schema(),
+                                inputSchema=_normalize_schema(GitStatus.schema()),
+
             ),
             Tool(
                 name=GitTools.DIFF_UNSTAGED,
                 description="Shows changes in the working directory that are not yet staged",
-                inputSchema=GitDiffUnstaged.schema(),
+                                inputSchema=_normalize_schema(GitDiffUnstaged.schema()),
+
             ),
             Tool(
                 name=GitTools.DIFF_STAGED,
                 description="Shows changes that are staged for commit",
-                inputSchema=GitDiffStaged.schema(),
+                                inputSchema=_normalize_schema(GitDiffStaged.schema()),
+
             ),
             Tool(
                 name=GitTools.DIFF,
                 description="Shows differences between branches or commits",
-                inputSchema=GitDiff.schema(),
+                                inputSchema=_normalize_schema(GitDiff.schema()),
+
             ),
             Tool(
                 name=GitTools.COMMIT,
                 description="Records changes to the repository",
-                inputSchema=GitCommit.schema(),
+                                inputSchema=_normalize_schema(GitCommit.schema()),
+
             ),
             Tool(
                 name=GitTools.ADD,
                 description="Adds file contents to the staging area",
-                inputSchema=GitAdd.schema(),
+                                inputSchema=_normalize_schema(GitAdd.schema()),
+
             ),
             Tool(
                 name=GitTools.RESET,
                 description="Unstages all staged changes",
-                inputSchema=GitReset.schema(),
+                                inputSchema=_normalize_schema(GitReset.schema()),
+
             ),
             Tool(
                 name=GitTools.LOG,
                 description="Shows the commit logs",
-                inputSchema=GitLog.schema(),
+                                inputSchema=_normalize_schema(GitLog.schema()),
+
             ),
             Tool(
                 name=GitTools.CREATE_BRANCH,
                 description="Creates a new branch from an optional base branch",
-                inputSchema=GitCreateBranch.schema(),
+                                inputSchema=_normalize_schema(GitCreateBranch.schema()),
+
             ),
             Tool(
                 name=GitTools.CHECKOUT,
                 description="Switches branches",
-                inputSchema=GitCheckout.schema(),
+                                inputSchema=_normalize_schema(GitCheckout.schema()),
+
             ),
             Tool(
                 name=GitTools.SHOW,
                 description="Shows the contents of a commit",
-                inputSchema=GitShow.schema(),
+                                inputSchema=_normalize_schema(GitShow.schema()),
+
             )
         ]
 
